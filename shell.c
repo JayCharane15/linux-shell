@@ -26,6 +26,29 @@ void handle_sigtstp(int sig);
 
 
 
+char* find_path(char* str)
+{
+    char* full_path = malloc(sizeof(char)*100);
+    for(int i = 0; i < path_num; i++)
+    {
+
+        strcpy(full_path,PATH[i]);
+        strcat(full_path,"/");
+        strcat(full_path, str);
+        // printf("Checkpoint 3\n");
+
+        FILE* fptr = fopen(full_path, "r");
+        if(fptr != NULL)
+        {
+            return full_path;
+        }
+        
+    }
+
+    return NULL;
+
+}
+
 
 char* remove_red_spaces(char* str)
 {
@@ -577,131 +600,66 @@ int main()
                     pipe_parts[c1][c2] = NULL;
 
                     pid = fork();
-
                     if(pid == 0)
                     {
-
-                        int pipes[pipe_count][2];
+                        int pfd[pipe_count][2];
                         for(int i = 0; i < pipe_count; i++)
                         {
-                            if(pipe(pipes[i]) == -1)
+                            if(pipe(pfd[i]) == -1)
                             {
-                                printf("Error creating pipes");
-                            }
-                        }
-
-                        int pids[pipe_count];
-                        // int pids[pipe_count];
-                        // int i;
-                        char full_path_n[100];
-                        for(i = 0 ;i < pipe_count; i++)
-                        {
-                            pids[i] = fork();
-                            if(pids[i] == 0)
-                            {
-                                for (int j = 0; j < pipe_count; j++) 
-                                {
-                                    if (i != j) {
-                                        close(pipes[j][0]);
-                                    }
-                                    if (i + 1 != j) {
-                                        close(pipes[j][1]);
-                                    }
-                                }
-
-                                close(0);
-                                dup(pipes[i][0]);
-
-
-                                if(i != pipe_count-1)
-                                {
-                                    close(1);
-                                    dup(pipes[i+1][1]);
-
-                                }
-
-
-                                for(int i = 0; i < path_num; i++)
-                                {
-
-                                    strcpy(full_path_n,PATH[i]);
-                                    strcat(full_path_n,"/");
-                                    strcat(full_path_n, pipe_parts[i+1][0]);
-                                    // printf("Checkpoint 3\n");
-
-                                    int ret = execv(full_path_n,pipe_parts[i+1]);
-                                    if(ret == -1 && i == path_num-1)
-                                    {
-                                        perror("Execution failed: ");
-                                        exit(errno);
-
-                                    }
-                                }
-
-                                close(pipes[i][0]);
-                                close(pipes[i+1][0]);
-
-                                return 0;
-
-                                
-
-
-
-
-                                
-                            }
-
-                        }
-
-                        
-                        close(1);
-                        dup(pipes[1][1]);
-
-                        close(pipes[0][0]);
-
-                        for(int i = 1; i < pipe_count; i++)
-                        {
-                            close(pipes[i][0]);
-                            if(i != 1)
-                            {
-                                close(pipes[i][1]);
-
-                            }
-                        }
-
-                        for(int i = 0; i < path_num; i++)
-                        {
-
-                            strcpy(full_path_n,PATH[i]);
-                            strcat(full_path_n,"/");
-                            strcat(full_path_n, pipe_parts[0][0]);
-                            // printf("Checkpoint 3\n");
-
-                            int ret = execv(full_path_n,pipe_parts[0]);
-                            if(ret == -1 && i == path_num-1)
-                            {
-                                perror("Execution failed: ");
+                                perror("Failed to create a pipe");
                                 exit(errno);
 
                             }
                         }
+                        int pids[pipe_count];
 
-                        close(pipes[1][1]);
+                        
 
-                        for(int i = 0; i < pipe_count; i++)
+                        pids[0] = fork();
+                        if(pids[0] != 0)
                         {
-                            wait(NULL);
+                            close(pfd[0][0]);
+                            close(1);
+                            dup(pfd[0][1]);
+                            execv(find_path(pipe_parts[0][0]), pipe_parts[0]);
+
+
                         }
+
+                        for(int i = 1; i < pipe_count; i++)
+                        {
+                            pids[i] = fork();
+                            if(pids[i] == 0)
+                            {
+                                close(pfd[i-1][1]);
+                                close(pfd[i][0]);
+
+                                close(0);
+                                dup(pfd[i-1][0]);
+
+                                close(1);
+                                dup(pfd[i][1]);
+
+                                execv(find_path(pipe_parts[i][0]), pipe_parts[i]);
+                            }
+                            else
+                            {
+                                close(pfd[i][1]);
+                                close(0);
+                                dup(pfd[i][0]);
+
+                                execv(find_path(pipe_parts[i+1][0]), pipe_parts[i+1]);
+                            }
+                        }
+
+                        
+
                     }
                     else
                     {
                         wait(NULL);
                     }
-
-
-
-                    // printf("%s %s",pipe_parts[c1][c2-1], pipe_parts[c1][c2]);
-
 
 
 
